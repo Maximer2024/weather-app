@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Прогноз Погоды</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const cities = [
+            { name: "Москва", lat: 55.7558, lon: 37.6173 },
+            { name: "Санкт-Петербург", lat: 59.9343, lon: 30.3351 },
+            { name: "Лондон", lat: 51.5074, lon: -0.1278 },
+            { name: "Нью-Йорк", lat: 40.7128, lon: -74.0060 },
+            { name: "Омск", lat: 54.9924, lon: 73.3681 },
+            { name: "Новосибирск", lat: 55.0084, lon: 82.9357 }
+        ];
+
+        const WeatherApp = () => {
+            const [selectedCity, setSelectedCity] = useState(cities[0]);
+            const [weatherData, setWeatherData] = useState(null);
+            const [view, setView] = useState('current');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+
+            const API_KEY = '016908efc5953f1387a9f8d6942e7dc1'; 
+
+            const translateWeather = (description) => {
+                const translations = {
+                    "clear sky": "ясное небо",
+                    "few clouds": "малооблачно",
+                    "scattered clouds": "рассеянные облака",
+                    "broken clouds": "облачно с прояснениями",
+                    "overcast clouds": "пасмурно",
+                    "light rain": "небольшой дождь",
+                    "moderate rain": "умеренный дождь",
+                    "heavy rain": "сильный дождь",
+                    "thunderstorm": "гроза",
+                    "thunderstorm with light rain": "гроза с небольшим дождем",
+                    "snow": "снег",
+                    "mist": "туман",
+                    "fog": "туман"
+                };
+                return translations[description.toLowerCase()] || description;
+            };
+
+            useEffect(() => {
+                const fetchWeather = async () => {
+                    setLoading(true);
+                    setError(null);
+                    try {
+                        const currentResponse = await axios.get(
+                            `https://api.openweathermap.org/data/2.5/weather?lat=${selectedCity.lat}&lon=${selectedCity.lon}&units=metric&appid=${API_KEY}`
+                        );
+                        const forecastResponse = await axios.get(
+                            `https://api.openweathermap.org/data/2.5/forecast?lat=${selectedCity.lat}&lon=${selectedCity.lon}&units=metric&appid=${API_KEY}`
+                        );
+                        setWeatherData({
+                            current: currentResponse.data,
+                            forecast: forecastResponse.data
+                        });
+                    } catch (err) {
+                        setError('Не удалось загрузить данные о погоде');
+                    }
+                    setLoading(false);
+                };
+                fetchWeather();
+            }, [selectedCity]);
+
+            const formatDate = (timestamp) => {
+                return new Date(timestamp * 1000).toLocaleDateString('ru-RU', {
+                    weekday: 'long',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            };
+
+            const getDailyForecast = (forecastList) => {
+                const daily = {};
+                forecastList.forEach(item => {
+                    const date = new Date(item.dt * 1000).toLocaleDateString('ru-RU');
+                    if (!daily[date]) {
+                        daily[date] = {
+                            temp: item.main.temp,
+                            description: item.weather[0].description,
+                            humidity: item.main.humidity,
+                            wind: item.wind.speed
+                        };
+                    }
+                });
+                return Object.keys(daily).slice(0, 5).map(date => ({
+                    date,
+                    ...daily[date]
+                }));
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
+                    <h1 className="text-3xl font-bold mb-6 text-gray-800">Прогноз Погоды</h1>
+                    
+                    <div className="w-full max-w-md mb-6">
+                        <select 
+                            className="w-full p-2 border rounded-lg bg-white text-gray-800"
+                            value={selectedCity.name}
+                            onChange={(e) => {
+                                const city = cities.find(c => c.name === e.target.value);
+                                setSelectedCity(city);
+                            }}
+                        >
+                            {cities.map(city => (
+                                <option key={city.name} value={city.name}>{city.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex space-x-4 mb-6">
+                        <button 
+                            className={`px-4 py-2 rounded-lg ${view === 'current' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                            onClick={() => setView('current')}
+                        >
+                            Сейчас
+                        </button>
+                        <button 
+                            className={`px-4 py-2 rounded-lg ${view === 'fiveDay' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                            onClick={() => setView('fiveDay')}
+                        >
+                            Прогноз на 5 дней
+                        </button>
+                    </div>
+
+                    {loading && <p className="text-gray-600">Загрузка...</p>}
+                    {error && <p className="text-red-500">{error}</p>}
+
+                    {weatherData && view === 'current' && weatherData.current && (
+                        <div className="w-full max-w-md bg-white p-6 rounded-lg shadow-lg">
+                            <h2 className="text-xl font-semibold mb-2">Текущая погода в {selectedCity.name}</h2>
+                            <p className="text-lg">Температура: {weatherData.current.main.temp}°C</p>
+                            <p>Ощущается как: {weatherData.current.main.feels_like}°C</p>
+                            <p>Погода: {translateWeather(weatherData.current.weather[0].description)}</p>
+                            <p>Влажность: {weatherData.current.main.humidity}%</p>
+                            <p>Ветер: {weatherData.current.wind.speed} м/с</p>
+                        </div>
+                    )}
+
+                    {weatherData && view === 'fiveDay' && weatherData.forecast && (
+                        <div className="w-full max-w-3xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                            {getDailyForecast(weatherData.forecast.list).map((day, index) => (
+                                <div key={index} className="bg-white p-4 rounded-lg shadow-lg">
+                                    <h3 className="font-semibold">{day.date}</h3>
+                                    <p>Темп.: {day.temp}°C</p>
+                                    <p>Погода: {translateWeather(day.description)}</p>
+                                    <p>Влажность: {day.humidity}%</p>
+                                    <p>Ветер: {day.wind} м/с</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<WeatherApp />);
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.0/babel.min.js"></script>
+</body>
+</html>
